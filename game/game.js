@@ -7,6 +7,17 @@ var Game = {
 	game_context: null,
 	init: function(){
 		Game.nextID = 0;
+		Game.box.Vec2 = Box2D.Common.Math.b2Vec2;
+		Game.box.BodyDef = Box2D.Dynamics.b2BodyDef;
+		Game.box.Body = Box2D.Dynamics.b2Body;
+		Game.box.FixtureDef = Box2D.Dynamics.b2FixtureDef;
+		Game.box.Fixture = Box2D.Dynamics.b2Fixture;
+		Game.box.World = Box2D.Dynamics.b2World;
+		Game.box.MassData = Box2D.Collision.Shapes.b2MassData;
+		Game.box.PolygonShape = Box2D.Collision.Shapes.b2PolygonShape;
+		Game.box.CircleShape = Box2D.Collision.Shapes.b2CircleShape;
+		Game.box.DebugDraw = Box2D.Dynamics.b2DebugDraw;
+		Game.box.world = new Game.box.World(new Game.box.Vec2(), true);
 		Game.game_canvas = $("#game")[0];
 		Game.game_canvas.width = 800;
 		Game.game_canvas.height = 480;
