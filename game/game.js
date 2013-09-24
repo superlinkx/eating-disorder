@@ -52,6 +52,7 @@ var Game = {
 
 var playerFactory = function() {
 	var player = Object.create(Entity);
+	player.id = Game.nextID++;
 	player.velx = 0;
 	player.vely = 0;
 	player.posx = Game.game_canvas.width/4;
