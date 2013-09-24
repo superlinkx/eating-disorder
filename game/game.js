@@ -46,14 +46,12 @@ var Game = {
 		for(var i = 0; i < walls_length; i++) {
 			Game.walls[i].update();
 		}
-		
 		Game.game_context.stroke();
 	},
 }
 
 var playerFactory = function() {
 	var player = Object.create(Entity);
-	player.id = Game.nextID++;
 	player.velx = 0;
 	player.vely = 0;
 	player.posx = Game.game_canvas.width/4;
@@ -163,13 +161,7 @@ var CirclePhysics = {
 		this.collision();
 		this.move();
 	},
-	collision: function() {
-		
-		/*
-		for(var i = Game.entity_i + 1; i < Game.entity_length; i++) {
-			//Check for collision.
-		}*/
-	},
+	collision: function() {},
 	move: function() {
 		this.parent.posx=this.physBody.GetPosition().x;
 		this.parent.posy=this.physBody.GetPosition().y
@@ -197,9 +189,7 @@ var WallPhysics = {
 	run: function() {
 		this.collision();
 	},
-	collision: function() {
-		
-	}
+	collision: function() {}
 }
 
 var EntityRender = {
@@ -208,7 +198,6 @@ var EntityRender = {
 		this.color = "#0000ff";
 	},
 	run: function() {
-		//Game.game_context.beginPath();
 		Game.game_context.arc(this.parent.posx, this.parent.posy, this.parent.radius, 0, 2*Math.PI);
 	}
 };
@@ -218,7 +207,6 @@ var WallRender = {
 		this.parent = parent;
 	},
 	run: function() {
-		//Game.game_context.beginPath();
 		Game.game_context.rect(this.parent.posx, this.parent.posy, this.parent.width, this.parent.height);
 	}
 }
