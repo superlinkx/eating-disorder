@@ -5,6 +5,7 @@ var Game = {
 	entity_length: null,
 	game_canvas: null,
 	game_context: null,
+	transfer_const: 0.5,
 	init: function(canvas, width,height){
 		Game.nextID = 0;
 		Game.box = {};
@@ -19,6 +20,50 @@ var Game = {
 		Game.box.CircleShape = Box2D.Collision.Shapes.b2CircleShape;
 		Game.box.DebugDraw = Box2D.Dynamics.b2DebugDraw;
 		Game.box.world = new Game.box.World(new Game.box.Vec2(0,0.0), true);
+		Game.box.scale = 5;
+		var contactListener = new Box2D.Dynamics.b2ContactListener;
+		contactListener.PreSolve = function(contact, manifold) {
+			if(contact.IsTouching()) {
+				var a = contact.GetFixtureA().GetBody().GetUserData();
+				var b = contact.GetFixtureB().GetBody().GetUserData();
+				if(a.type == "player" || a.type == "enemy" && b.type == "player" || b.type == "enemy") {
+					if(a.radius > b.radius) {
+						var bigger = a;
+						var smaller = b;
+					} else {
+						var bigger = b;
+						var smaller = a;
+					}
+
+					var distance = Math.sqrt(Math.pow(a.posx - b.posx, 2) + Math.pow(a.posy - b.posy, 2));
+
+					var part1 = smaller.radius*smaller.radius*Math.acos((distance*distance + smaller.radius*smaller.radius - bigger.radius*bigger.radius)/(2*distance*smaller.radius));
+					var part2 = bigger.radius*bigger.radius*Math.acos((distance*distance + bigger.radius*bigger.radius - smaller.radius*smaller.radius)/(2*distance*bigger.radius));
+					var part3 = 0.5*Math.sqrt((-distance+smaller.radius+bigger.radius)*(distance+smaller.radius-bigger.radius)*(distance-smaller.radius+bigger.radius)*(distance+smaller.radius+bigger.radius));
+					var intersectionArea = part1 + part2 - part3;
+
+					var transfer_radius = Game.transfer_const*intersectionArea;
+
+					bigger.radius += transfer_radius;
+					smaller.radius -= transfer_radius;
+
+					bigger.physics.physFixture.GetShape().SetRadius(bigger.radius/Game.box.scale);
+					if(smaller > 0)
+						smaller.physics.physFixture.GetShape().SetRadius(smaller.radius/Game.box.scale);
+					else
+						Game.removeEntity(smaller);
+					contact.SetEnabled(false);
+				}
+			}
+		};
+		contactListener.EndContact = function(contact, manifold) {
+			var a = contact.GetFixtureA().GetBody().GetUserData();
+			var b = contact.GetFixtureB().GetBody().GetUserData();
+			if(a.type == "player" || a.type == "enemy" && b.type == "player" || b.type == "enemy") {
+				contact.SetEnabled(false);
+			}
+		}
+		Game.box.world.SetContactListener(contactListener);
 		
 		Game.game_canvas = canvas;
 		Game.game_canvas.width = width;
@@ -28,7 +73,9 @@ var Game = {
 		Game.walls.push(wallFactory(Game.game_canvas.width-1,0,1,Game.game_canvas.height)); //Right border
 		Game.walls.push(wallFactory(0,Game.game_canvas.height-1,Game.game_canvas.width,1)); //Bottom border
 		Game.walls.push(wallFactory(0,0,1,Game.game_canvas.height)); //Left border
-		Game.entities.push(playerFactory());
+		Game.entities.push(playerFactory(Game.game_canvas.width/2, Game.game_canvas.height/2, 10));
+		Game.entities.push(enemyFactory(Game.game_canvas.width/4, Game.game_canvas.height/4, 5));
+		Game.entities.push(enemyFactory(Game.game_canvas.width/8, Game.game_canvas.height/8, 8));
 		window.requestAnimationFrame(Game.loop);
 	},
 	loop: function(){
@@ -38,7 +85,6 @@ var Game = {
 		
 		Game.game_context.clearRect(0, 0, Game.game_canvas.width, Game.game_canvas.height);
 		Game.entity_length = Game.entities.length;
-		Game.game_context.beginPath();
 		for(Game.entity_i = 0; Game.entity_i < Game.entity_length; Game.entity_i++) {
 			Game.entities[Game.entity_i].update();
 		}
@@ -46,18 +92,21 @@ var Game = {
 		for(var i = 0; i < walls_length; i++) {
 			Game.walls[i].update();
 		}
-		Game.game_context.stroke();
 	},
+	removeEntity: function(entity) {
+		entity.deleted = true;
+	}
 }
 
-var playerFactory = function() {
+var playerFactory = function(posx, posy, radius) {
 	var player = Object.create(Entity);
 	player.id = Game.nextID++;
+	player.type = "player";
 	player.velx = 0;
 	player.vely = 0;
-	player.posx = Game.game_canvas.width/4;
-	player.posy = Game.game_canvas.height/4;
-	player.radius = 10;
+	player.posx = posx;
+	player.posy = posy;
+	player.radius = radius;
 	player.input = Object.create(PlayerInput);
 	player.input.init(player);
 	player.physics = Object.create(CirclePhysics);
@@ -67,8 +116,27 @@ var playerFactory = function() {
 	return player;
 };
 
+var enemyFactory = function(posx, posy, radius) {
+	var enemy = Object.create(Entity);
+	enemy.id = Game.nextID++;
+	enemy.type = "enemy";
+	enemy.velx = 0;
+	enemy.vely = 0;
+	enemy.posx = posx;
+	enemy.posy = posy;
+	enemy.radius = radius;
+	enemy.input = Object.create(Empty);
+	enemy.input.init(enemy);
+	enemy.physics = Object.create(CirclePhysics);
+	enemy.physics.init(enemy);
+	enemy.render = Object.create(EntityRender);
+	enemy.render.init(enemy);
+	return enemy;
+}
+
 var wallFactory = function(posx, posy, width, height) {
 	var wall = Object.create(Entity);
+	wall.type = "wall";
 	wall.posx = posx;
 	wall.posy = posy;
 	wall.width = width;
@@ -121,13 +189,11 @@ var PlayerInput = {
 		});
 	},
 	run: function(){
-		var speed = 0.001;
 		var dirx=0;
 		var diry=0;
 		var force = 800;
-		if(this.keyState.up){
+		if(this.keyState.up)
 			diry = -force;
-		}
 		if(this.keyState.down)
 			diry = force;
 		if(this.keyState.left)
@@ -145,18 +211,20 @@ var PlayerInput = {
 var CirclePhysics = {
 	init: function(parent) {
 		this.parent = parent;
-		this.physFixture = new Game.box.FixtureDef();
-		this.physFixture.shape = new Game.box.CircleShape();
-		this.physFixture.density=1;
+		var fixtureDef = new Game.box.FixtureDef();
+		fixtureDef.shape = new Game.box.CircleShape();
+		fixtureDef.density=1;
+		fixtureDef.restitution=1;
+		fixtureDef.friction=0;
 		
-		this.physBody = new Game.box.BodyDef();
-		this.physBody.type = Game.box.Body.b2_dynamicBody;
-		this.physBody.position.x=this.parent.posx;
-		this.physBody.position.y=this.parent.posy;
-		this.physFixture.shape.SetRadius(this.parent.radius);
-		this.physBody = Game.box.world.CreateBody(this.physBody);
-		this.physFixture = this.physBody.CreateFixture(this.physFixture);
-		
+		var physBody = new Game.box.BodyDef();
+		physBody.type = Game.box.Body.b2_dynamicBody;
+		physBody.position.x=this.parent.posx/Game.box.scale;
+		physBody.position.y=this.parent.posy/Game.box.scale;
+		fixtureDef.shape.SetRadius(this.parent.radius/Game.box.scale);
+		this.physBody = Game.box.world.CreateBody(physBody);
+		this.physBody.SetUserData(this.parent);
+		this.physFixture = this.physBody.CreateFixture(fixtureDef);
 	},
 	run: function() {
 		this.collision();
@@ -164,8 +232,8 @@ var CirclePhysics = {
 	},
 	collision: function() {},
 	move: function() {
-		this.parent.posx=this.physBody.GetPosition().x;
-		this.parent.posy=this.physBody.GetPosition().y
+		this.parent.posx=this.physBody.GetPosition().x*Game.box.scale;
+		this.parent.posy=this.physBody.GetPosition().y*Game.box.scale;
 		//this.parent.lastposx = this.parent.posx;
 		//this.parent.lastposy = this.parent.posy;
 		//this.parent.posx += this.parent.velx;
@@ -176,16 +244,17 @@ var CirclePhysics = {
 var WallPhysics = {
 	init: function(parent) {
 		this.parent = parent;
-		this.physFixture = new Game.box.FixtureDef();
-		this.physFixture.shape = new Game.box.PolygonShape();
-		this.physFixture.shape.SetAsBox(this.parent.width,this.parent.height);
+		var fixtureDef = new Game.box.FixtureDef();
+		fixtureDef.shape = new Game.box.PolygonShape();
+		fixtureDef.shape.SetAsBox(this.parent.width/Game.box.scale,this.parent.height/Game.box.scale);
 		
-		this.physBody = new Game.box.BodyDef();
-		this.physBody.type = Game.box.Body.b2_staticBody;
-		this.physBody.position.x = this.parent.posx;
-		this.physBody.position.y = this.parent.posy;
-		this.physBody = Game.box.world.CreateBody(this.physBody);
-		this.physFixture = this.physBody.CreateFixture(this.physFixture);
+		var physBody = new Game.box.BodyDef();
+		physBody.type = Game.box.Body.b2_staticBody;
+		physBody.position.x = this.parent.posx/Game.box.scale;
+		physBody.position.y = this.parent.posy/Game.box.scale;
+		this.physBody = Game.box.world.CreateBody(physBody);
+		this.physBody.SetUserData(this.parent);
+		this.physFixture = this.physBody.CreateFixture(fixtureDef);
 	},
 	run: function() {
 		this.collision();
@@ -199,7 +268,13 @@ var EntityRender = {
 		this.color = "#0000ff";
 	},
 	run: function() {
-		Game.game_context.arc(this.parent.posx, this.parent.posy, this.parent.radius, 0, 2*Math.PI);
+		if(this.parent.radius > 0) {
+			Game.game_context.beginPath();
+			Game.game_context.arc(this.parent.posx, this.parent.posy, this.parent.radius, 0, 2*Math.PI);
+			Game.game_context.stroke();
+		} else {
+			console.error("RADIUS OF: " + this.parent.id + " IS INVALID");
+		}
 	}
 };
 
@@ -208,7 +283,9 @@ var WallRender = {
 		this.parent = parent;
 	},
 	run: function() {
+		Game.game_context.beginPath();
 		Game.game_context.rect(this.parent.posx, this.parent.posy, this.parent.width, this.parent.height);
+		Game.game_context.stroke();
 	}
 }
 
