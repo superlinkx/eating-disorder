@@ -8,21 +8,16 @@ var Game = {
 	transfer_const: 0.5,
 	init: function(canvas, width,height){
 		Game.nextID = 0;
-		Game.box = {};
-		Game.box.Vec2 = Box2D.Common.Math.b2Vec2;
-		Game.box.BodyDef = Box2D.Dynamics.b2BodyDef;
-		Game.box.Body = Box2D.Dynamics.b2Body;
-		Game.box.FixtureDef = Box2D.Dynamics.b2FixtureDef;
-		Game.box.Fixture = Box2D.Dynamics.b2Fixture;
-		Game.box.World = Box2D.Dynamics.b2World;
-		Game.box.MassData = Box2D.Collision.Shapes.b2MassData;
-		Game.box.PolygonShape = Box2D.Collision.Shapes.b2PolygonShape;
-		Game.box.CircleShape = Box2D.Collision.Shapes.b2CircleShape;
-		Game.box.DebugDraw = Box2D.Dynamics.b2DebugDraw;
-		Game.box.world = new Game.box.World(new Game.box.Vec2(0,0.0), true);
-		Game.box.scale = 5;
-		var contactListener = new Box2D.Dynamics.b2ContactListener;
-		contactListener.PreSolve = function(contact, manifold) {
+		Game.physics = Object.create(physicsModule);
+		Game.physics.init(5);
+		Game.physics.setEndContactListener(function(contact, manifold) {
+			var a = contact.GetFixtureA().GetBody().GetUserData();
+			var b = contact.GetFixtureB().GetBody().GetUserData();
+			if(a.type == "player" || a.type == "enemy" && b.type == "player" || b.type == "enemy") {
+				contact.SetEnabled(false);
+			}
+		});
+		Game.physics.setPreSolveListener(function(contact, manifold) {
 			if(contact.IsTouching()) {
 				var a = contact.GetFixtureA().GetBody().GetUserData();
 				var b = contact.GetFixtureB().GetBody().GetUserData();
@@ -36,66 +31,136 @@ var Game = {
 					}
 
 					var distance = Math.sqrt(Math.pow(a.posx - b.posx, 2) + Math.pow(a.posy - b.posy, 2));
-
-					var part1 = smaller.radius*smaller.radius*Math.acos((distance*distance + smaller.radius*smaller.radius - bigger.radius*bigger.radius)/(2*distance*smaller.radius));
-					var part2 = bigger.radius*bigger.radius*Math.acos((distance*distance + bigger.radius*bigger.radius - smaller.radius*smaller.radius)/(2*distance*bigger.radius));
-					var part3 = 0.5*Math.sqrt((-distance+smaller.radius+bigger.radius)*(distance+smaller.radius-bigger.radius)*(distance-smaller.radius+bigger.radius)*(distance+smaller.radius+bigger.radius));
-					var intersectionArea = part1 + part2 - part3;
-
-					var transfer_radius = Game.transfer_const*intersectionArea;
-
-					bigger.radius += transfer_radius;
-					smaller.radius -= transfer_radius;
-
-					bigger.physics.physFixture.GetShape().SetRadius(bigger.radius/Game.box.scale);
-					if(smaller > 0)
-						smaller.physics.physFixture.GetShape().SetRadius(smaller.radius/Game.box.scale);
-					else
+					if(distance > bigger.radius-smaller.radius){
+						var part1 = smaller.radius*smaller.radius*Math.acos((distance*distance + smaller.radius*smaller.radius - bigger.radius*bigger.radius)/(2*distance*smaller.radius));
+						var part2 = bigger.radius*bigger.radius*Math.acos((distance*distance + bigger.radius*bigger.radius - smaller.radius*smaller.radius)/(2*distance*bigger.radius));
+						var part3 = 0.5*Math.sqrt((-distance+smaller.radius+bigger.radius)*(distance+smaller.radius-bigger.radius)*(distance-smaller.radius+bigger.radius)*(distance+smaller.radius+bigger.radius));
+						var intersectionArea = part1 + part2 - part3;
+						var bigArea = bigger.radius*bigger.radius*Math.PI;
+						var smallArea = smaller.radius*smaller.radius*Math.PI;
+						bigArea += Game.transfer_const*intersectionArea;
+						smallArea -= Game.transfer_const*intersectionArea;
+						bigger.radius = Math.sqrt(bigArea/Math.PI);
+						smaller.radius = Math.sqrt(smallArea/Math.PI);
+					}else{
+						var bigArea = bigger.radius*bigger.radius*Math.PI;
+						var smallArea = smaller.radius*smaller.radius*Math.PI;
+						bigArea += smallArea;
+						smaller.radius=.0001;
+						bigger.radius = Math.sqrt(bigArea/Math.PI);
+					}
+					
+					bigger.physics.physFixture.GetShape().SetRadius(bigger.radius/Game.physics.scale);
+					if(smaller.radius > .001){
+						
+						smaller.physics.physFixture.GetShape().SetRadius(smaller.radius/Game.physics.scale);
+					}else{
 						Game.removeEntity(smaller);
+						//smaller.radius=0.001;
+					}
 					contact.SetEnabled(false);
 				}
 			}
-		};
-		contactListener.EndContact = function(contact, manifold) {
-			var a = contact.GetFixtureA().GetBody().GetUserData();
-			var b = contact.GetFixtureB().GetBody().GetUserData();
-			if(a.type == "player" || a.type == "enemy" && b.type == "player" || b.type == "enemy") {
-				contact.SetEnabled(false);
-			}
-		}
-		Game.box.world.SetContactListener(contactListener);
+		});
 		
 		Game.game_canvas = canvas;
 		Game.game_canvas.width = width;
 		Game.game_canvas.height = height;
 		Game.game_context = Game.game_canvas.getContext("2d");
-		Game.walls.push(wallFactory(0,0,Game.game_canvas.width,1)); //Top border
-		Game.walls.push(wallFactory(Game.game_canvas.width-1,0,1,Game.game_canvas.height)); //Right border
-		Game.walls.push(wallFactory(0,Game.game_canvas.height-1,Game.game_canvas.width,1)); //Bottom border
-		Game.walls.push(wallFactory(0,0,1,Game.game_canvas.height)); //Left border
-		Game.entities.push(playerFactory(Game.game_canvas.width/2, Game.game_canvas.height/2, 10));
-		Game.entities.push(enemyFactory(Game.game_canvas.width/4, Game.game_canvas.height/4, 5));
-		Game.entities.push(enemyFactory(Game.game_canvas.width/8, Game.game_canvas.height/8, 8));
+		Game.new_entities = [];
+		Game.entities_deleted = false;
+		Game.buildScene();
 		window.requestAnimationFrame(Game.loop);
+	},
+	buildScene: function(){
+		Game.addEntity(wallFactory(0,0,Game.game_canvas.width,1)); //Top border
+		Game.addEntity(wallFactory(Game.game_canvas.width-1,0,1,Game.game_canvas.height)); //Right border
+		Game.addEntity(wallFactory(0,Game.game_canvas.height-1,Game.game_canvas.width,1)); //Bottom border
+		Game.addEntity(wallFactory(0,0,1,Game.game_canvas.height)); //Left border
+
+		Game.player = Game.addEntity(playerFactory(Game.game_canvas.width/2, Game.game_canvas.height/2, 10));
+		Game.addEntity(enemyFactory(Game.game_canvas.width/4, Game.game_canvas.height/4, 5));
+		Game.addEntity(enemyFactory(Game.game_canvas.width/8, Game.game_canvas.height/8, 8));
+		
 	},
 	loop: function(){
 		window.requestAnimationFrame(Game.loop);
-		Game.box.world.Step(1 / 60,  3,  3);
-		Game.box.world.ClearForces();
-		
+		if(Game.new_entities.length > 0){
+			Game.entities = Game.entities.concat(Game.new_entities); // add new entities
+			Game.new_entities = []; // empty the array
+		}
+		//clear screen
 		Game.game_context.clearRect(0, 0, Game.game_canvas.width, Game.game_canvas.height);
+		Game.physics.update();
 		Game.entity_length = Game.entities.length;
 		for(Game.entity_i = 0; Game.entity_i < Game.entity_length; Game.entity_i++) {
 			Game.entities[Game.entity_i].update();
 		}
-		var walls_length = Game.walls.length;
-		for(var i = 0; i < walls_length; i++) {
-			Game.walls[i].update();
+		
+		//clean up deleted items
+		if(Game.entities_deleted == true){
+			Game.entities = Game.entities.filter(function(el){ 
+				if(el.deleted == true){
+					el.destroy();
+					return false;
+				}else
+					return true;
+			});
+			Game.entities_deleted = false;
 		}
+		
 	},
-	removeEntity: function(entity) {
+	addEntity: function(entity){
+		Game.new_entities.push(entity);
+		entity.init();
+		return entity;
+	},
+	removeEntity:function(entity){
+		Game.entities_deleted = true;
 		entity.deleted = true;
+		return entity;
+	},
+	
+}
+
+var physicsModule = {
+	init: function(scale){
+		this.Vec2 = Box2D.Common.Math.b2Vec2;
+		this.BodyDef = Box2D.Dynamics.b2BodyDef;
+		this.Body = Box2D.Dynamics.b2Body;
+		this.FixtureDef = Box2D.Dynamics.b2FixtureDef;
+		this.Fixture = Box2D.Dynamics.b2Fixture;
+		this.World = Box2D.Dynamics.b2World;
+		this.MassData = Box2D.Collision.Shapes.b2MassData;
+		this.PolygonShape = Box2D.Collision.Shapes.b2PolygonShape;
+		this.CircleShape = Box2D.Collision.Shapes.b2CircleShape;
+		this.DebugDraw = Box2D.Dynamics.b2DebugDraw;
+		this.scale = scale;
+		this.world = new this.World(new this.Vec2(0,0.0), true);
+		this.contactListener = new Box2D.Dynamics.b2ContactListener;
+		this.world.SetContactListener(this.contactListener);
+		
+	},
+	setBeginContactListener:function(listener){
+		this.contactListener.BeginContact = listener;	
+	},
+	setPreSolveListener: function(listener){
+		this.contactListener.PreSolve = listener;
+	},
+	setPostSolveListener: function(listener){
+		this.contactListener.PostSolve = listener;
+	},
+	setEndContactListener: function(listener){
+		this.contactListener.EndContact = listener;
+	},
+	update: function(){
+		this.world.Step(1 / 60,  3,  3);
+		this.world.ClearForces();
+	},
+	removeBody: function(body){
+		this.world.DestroyBody(body);
 	}
+	
 }
 
 var playerFactory = function(posx, posy, radius) {
@@ -108,11 +173,8 @@ var playerFactory = function(posx, posy, radius) {
 	player.posy = posy;
 	player.radius = radius;
 	player.input = Object.create(PlayerInput);
-	player.input.init(player);
 	player.physics = Object.create(CirclePhysics);
-	player.physics.init(player);
 	player.render = Object.create(EntityRender);
-	player.render.init(player);
 	return player;
 };
 
@@ -126,11 +188,8 @@ var enemyFactory = function(posx, posy, radius) {
 	enemy.posy = posy;
 	enemy.radius = radius;
 	enemy.input = Object.create(Empty);
-	enemy.input.init(enemy);
 	enemy.physics = Object.create(CirclePhysics);
-	enemy.physics.init(enemy);
 	enemy.render = Object.create(EntityRender);
-	enemy.render.init(enemy);
 	return enemy;
 }
 
@@ -142,19 +201,26 @@ var wallFactory = function(posx, posy, width, height) {
 	wall.width = width;
 	wall.height = height;
 	wall.input = Object.create(Empty);
-	wall.input.init(wall);
 	wall.physics = Object.create(WallPhysics);
-	wall.physics.init(wall);
 	wall.render = Object.create(WallRender);
-	wall.render.init(wall);
 	return wall;
 }
 
 var Entity = {
+	init: function(){
+		this.input.init(this);
+		this.physics.init(this);
+		this.render.init(this);
+	},
 	update: function() {
 		this.input.run();
 		this.physics.run();
 		this.render.run();
+	},
+	destroy: function(){
+		this.input.destroy();
+		this.physics.destroy();
+		this.render.destroy();
 	}
 };
 
@@ -189,9 +255,9 @@ var PlayerInput = {
 		});
 	},
 	run: function(){
-		var dirx=0;
-		var diry=0;
-		var force = 800;
+		var dirx = 0;
+		var diry = 0;
+		var force = this.parent.radius*10;
 		if(this.keyState.up)
 			diry = -force;
 		if(this.keyState.down)
@@ -203,63 +269,64 @@ var PlayerInput = {
 		
 		var body = this.parent.physics.physBody;
 		if(!(dirx==0 && diry==0))
-		body.ApplyForce(new  Game.box.Vec2(dirx,diry),body.GetWorldCenter());
+		body.ApplyForce(new  Game.physics.Vec2(dirx,diry),body.GetWorldCenter());
 		
-	}
+	},
+	destroy: function(){}
 };
 
 var CirclePhysics = {
 	init: function(parent) {
 		this.parent = parent;
-		var fixtureDef = new Game.box.FixtureDef();
-		fixtureDef.shape = new Game.box.CircleShape();
-		fixtureDef.density=1;
-		fixtureDef.restitution=1;
-		fixtureDef.friction=0;
+		var fixtureDef = new Game.physics.FixtureDef();
+			fixtureDef.shape = new Game.physics.CircleShape();
+			fixtureDef.shape.SetRadius(this.parent.radius/Game.physics.scale);
+			fixtureDef.density=1;
+			fixtureDef.restitution=1;
+			fixtureDef.friction=0;
 		
-		var physBody = new Game.box.BodyDef();
-		physBody.type = Game.box.Body.b2_dynamicBody;
-		physBody.position.x=this.parent.posx/Game.box.scale;
-		physBody.position.y=this.parent.posy/Game.box.scale;
-		fixtureDef.shape.SetRadius(this.parent.radius/Game.box.scale);
-		this.physBody = Game.box.world.CreateBody(physBody);
-		this.physBody.SetUserData(this.parent);
+		var bodyDef = new Game.physics.BodyDef();
+			bodyDef.type = Game.physics.Body.b2_dynamicBody;
+			bodyDef.position.x = this.parent.posx/Game.physics.scale;
+			bodyDef.position.y = this.parent.posy/Game.physics.scale;
+			bodyDef.userData = this.parent;
+			
+		this.physBody = Game.physics.world.CreateBody(bodyDef);
 		this.physFixture = this.physBody.CreateFixture(fixtureDef);
 	},
-	run: function() {
-		this.collision();
+	run: function() {	
 		this.move();
 	},
-	collision: function() {},
 	move: function() {
-		this.parent.posx=this.physBody.GetPosition().x*Game.box.scale;
-		this.parent.posy=this.physBody.GetPosition().y*Game.box.scale;
-		//this.parent.lastposx = this.parent.posx;
-		//this.parent.lastposy = this.parent.posy;
-		//this.parent.posx += this.parent.velx;
-		//this.parent.posy += this.parent.vely;
+		this.parent.posx=this.physBody.GetPosition().x*Game.physics.scale;
+		this.parent.posy=this.physBody.GetPosition().y*Game.physics.scale;
+	},
+	destroy: function(){
+		Game.physics.removeBody(this.physBody);
 	}
 };
 
 var WallPhysics = {
 	init: function(parent) {
 		this.parent = parent;
-		var fixtureDef = new Game.box.FixtureDef();
-		fixtureDef.shape = new Game.box.PolygonShape();
-		fixtureDef.shape.SetAsBox(this.parent.width/Game.box.scale,this.parent.height/Game.box.scale);
+		var fixtureDef = new Game.physics.FixtureDef();
+		fixtureDef.shape = new Game.physics.PolygonShape();
+		fixtureDef.shape.SetAsBox(this.parent.width/Game.physics.scale,this.parent.height/Game.physics.scale);
 		
-		var physBody = new Game.box.BodyDef();
-		physBody.type = Game.box.Body.b2_staticBody;
-		physBody.position.x = this.parent.posx/Game.box.scale;
-		physBody.position.y = this.parent.posy/Game.box.scale;
-		this.physBody = Game.box.world.CreateBody(physBody);
-		this.physBody.SetUserData(this.parent);
+		var physDef = new Game.physics.BodyDef();
+		physDef.type = Game.physics.Body.b2_staticBody;
+		physDef.position.x = this.parent.posx/Game.physics.scale;
+		physDef.position.y = this.parent.posy/Game.physics.scale;
+		physDef.userData = this.parent;		
+		this.physBody = Game.physics.world.CreateBody(physDef);
 		this.physFixture = this.physBody.CreateFixture(fixtureDef);
 	},
 	run: function() {
-		this.collision();
 	},
-	collision: function() {}
+	destroy: function(){
+		Game.physics.removeBody(this.physBody);
+	}
+	
 }
 
 var EntityRender = {
@@ -273,9 +340,13 @@ var EntityRender = {
 			Game.game_context.arc(this.parent.posx, this.parent.posy, this.parent.radius, 0, 2*Math.PI);
 			Game.game_context.stroke();
 		} else {
-			console.error("RADIUS OF: " + this.parent.id + " IS INVALID");
+			console.error("RADIUS OF: " + this.parent.id + " IS INVALID "+this.parent.radius);
 		}
+	},
+	destroy: function(){
+	
 	}
+	
 };
 
 var WallRender = {
@@ -286,12 +357,14 @@ var WallRender = {
 		Game.game_context.beginPath();
 		Game.game_context.rect(this.parent.posx, this.parent.posy, this.parent.width, this.parent.height);
 		Game.game_context.stroke();
-	}
+	},
+	destroy: function(){}
 }
 
 var Empty = {
 	init: function() {},
-	run: function() {}
+	run: function() {},
+	destroy:function(){}
 }
 
 $(function(){
