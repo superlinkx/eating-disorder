@@ -77,10 +77,72 @@ var Game = {
 		Game.addEntity(wallFactory(Game.game_canvas.width-1,0,1,Game.game_canvas.height)); //Right border
 		Game.addEntity(wallFactory(0,Game.game_canvas.height-1,Game.game_canvas.width,1)); //Bottom border
 		Game.addEntity(wallFactory(0,0,1,Game.game_canvas.height)); //Left border
-
+		var circle_list = [];
+		var maxSize=20;
+		var minSize=1;
+		var x;
+		var y;
+		function dist(x,y,entity){
+			return Math.sqrt(Math.pow(entity.posx-x,2)+Math.pow(entity.posy-y,2) );
+		}
+		function testCircle(x,y,r,padding,list){
+			var listlen = list.length;
+			var valid = true;
+			
+			//test walls
+			
+			//left wall
+			if(x-r-padding < 0) return false
+			//top wall
+			if(y-r-padding < 0) return false
+			//right wall
+			if(x+r+padding > Game.game_canvas.width) return false;
+			//bottom wall
+			if(y+r+padding > Game.game_canvas.height) return false
+			//test other circles
+			for(var i=0;i<listlen;i++){
+				if(dist(x,y,list[i])-(r+padding) - list[i].radius  < 0){
+					return false;
+				}
+			}
+			return true;
+		}
+		
 		Game.player = Game.addEntity(playerFactory(Game.game_canvas.width/2, Game.game_canvas.height/2, 10));
-		Game.addEntity(enemyFactory(Game.game_canvas.width/4, Game.game_canvas.height/4, 5));
-		Game.addEntity(enemyFactory(Game.game_canvas.width/8, Game.game_canvas.height/8, 8));
+		circle_list.push(Game.player);
+		for(var i=0;i<300;i++){
+			var attempts = 50;
+			var point_found=false;
+			var rx;
+			var ry;
+			var maxR=150;
+			var minR=2;
+			var currentRadius = 1;
+			var targetRadius = Math.random()*(maxR-minR)+minR;
+			while(attempts > 0 && point_found == false){
+				rx = Math.random()*Game.game_canvas.width;
+				ry = Math.random()*Game.game_canvas.height;
+				point_found = testCircle(rx,ry,currentRadius,6,circle_list);
+			}
+			if(attempts == 0) continue;
+			while(currentRadius < targetRadius && point_found){
+				point_found = testCircle(rx,ry,currentRadius,6,circle_list);
+				if(point_found!=false){
+					currentRadius += .02;
+				}
+			}
+			console.log(currentRadius);
+//			if(currentRadius != currentRadius) continue;
+			circle_list.push(Game.addEntity(enemyFactory(rx, ry, currentRadius)));
+			
+		}
+		
+		
+		
+		
+		
+		//Game.addEntity(enemyFactory(Game.game_canvas.width/4, Game.game_canvas.height/4, 5));
+	//	Game.addEntity(enemyFactory(Game.game_canvas.width/8, Game.game_canvas.height/8, 8));
 		
 	},
 	loop: function(){
@@ -337,8 +399,19 @@ var EntityRender = {
 	run: function() {
 		if(this.parent.radius > 0) {
 			Game.game_context.beginPath();
+			if(this.parent.id === Game.player.id){ 
+				Game.game_context.strokeStyle ="#00FF00";
+			}else{
+				if(this.parent.radius >= Game.player.radius){
+					Game.game_context.strokeStyle = "#ff0000";
+				}else{
+					Game.game_context.strokeStyle = "#0000ff";				
+				}
+			}
+			
 			Game.game_context.arc(this.parent.posx, this.parent.posy, this.parent.radius, 0, 2*Math.PI);
 			Game.game_context.stroke();
+			
 		} else {
 			console.error("RADIUS OF: " + this.parent.id + " IS INVALID "+this.parent.radius);
 		}
@@ -355,6 +428,7 @@ var WallRender = {
 	},
 	run: function() {
 		Game.game_context.beginPath();
+		Game.game_context.strokeStyle = "#000";
 		Game.game_context.rect(this.parent.posx, this.parent.posy, this.parent.width, this.parent.height);
 		Game.game_context.stroke();
 	},

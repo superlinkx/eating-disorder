@@ -1,23 +1,30 @@
 <!DOCTYPE html>
 <html>
 	<head>
-		<title>Eating Disorder IN SPAAAAAAAAAAACE!</title>
+		<title>NOM NOM NOM NOM IN SPAAAAAAAAAAACE!</title>
 		<script src="game/jquery.js"></script>
 		<script src="game/box2dweb.min.js"></script>
 		<script src="game/game.js"></script>
 		<style>
 			body {
 				position: relative;
+				font-family:Arial,sans-serif;
 			}
-
+			.wrapper{
+				margin-left:auto;
+				margin-right:auto;
+				width:800px;
+				height:480px;
+			}
 			.game {
+				
 				position: relative;
 				/*overflow: hidden;*/
 			}
 
 			canvas {
-				width: 800px;
-				height: 480px;
+				width: inherit;
+				height: inherit;
 				position: absolute;
 				top: 0;
 				left: 0;
@@ -29,10 +36,17 @@
 		</style>
 	</head>
 	<body>
-		<h1>Eating Disorder IN SPAAAAAAAAAAACE!</h1>
-		<div class="game">
-			<!--<canvas id="background"></canvas>-->
-			<canvas id="game"></canvas>
+		<div class="wrapper" >
+			<h1>NOM NOM NOM NOM IN SPAAAAAAAAAAACE!</h1>
+			<p>Use arrow Keys to move.</p>
+			<p>Avoide the red circles</p>
+			<p>Absorbe the blue circles</p>
+			<p>Hit F5 for new game</p>
+			<div class="game">
+				<!--<canvas id="background"></canvas>-->
+				<canvas id="game"></canvas>
+			</div>
+			
 		</div>
 	</body>
 </html>
