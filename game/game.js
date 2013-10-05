@@ -8,6 +8,8 @@ var Game = {
 	transfer_const: 0.5,
 	bigger_then_player_count: 0,
 	smaller_then_player_count: 0,
+	currentBackgroundText: "",
+	currentBackgroundTextStyle: "#000",
 	init: function(canvas, width,height){
 		Game.nextID = 0;
 		Game.physics = Object.create(physicsModule);
@@ -96,9 +98,9 @@ var Game = {
 		Game.addEntity(wallFactory(0,Game.game_canvas.height-1,Game.game_canvas.width,1)); //Bottom border
 		Game.addEntity(wallFactory(0,0,1,Game.game_canvas.height)); //Left border
 		var circle_list = [];
-		var maxSize=20;
-		var minSize=1;
-		var padding = 5;
+		//var maxSize=10;
+		//var minSize=1;
+		var padding = 10;
 		var x;
 		var y;
 		function dist(x,y,entity){
@@ -171,6 +173,18 @@ var Game = {
 		}
 		//clear screen
 		Game.game_context.clearRect(0, 0, Game.game_canvas.width, Game.game_canvas.height);
+		
+		//draw background
+		Game.game_context.fillStyle = Game.currentBackgroundTextStyle;
+		var textHeight = 100;
+		Game.game_context.font = textHeight + "px Arial,sanserif";
+		Game.game_context.textBaseline = "middle";
+		Game.game_context.textAlign = "center";
+		Game.game_context.fillText(Game.currentBackgroundText, Game.game_canvas.width / 2, Game.game_canvas.height / 2);
+		Game.game_context.strokeStyle = "#000";
+		Game.game_context.strokeText(Game.currentBackgroundText, Game.game_canvas.width / 2, Game.game_canvas.height / 2);
+		
+		//run physics
 		Game.physics.update();
 		Game.entity_length = Game.entities.length;
 		for(Game.entity_i = 0; Game.entity_i < Game.entity_length; Game.entity_i++) {
@@ -193,12 +207,10 @@ var Game = {
 		if(Game.bigger_then_player_count <= 0) // if won
 		{
 			Game.onWin();
-			return; // skip get next render frame to stop game loop
 		}
 		else if(Game.smaller_then_player_count <= 0) // if lost
 		{
 			Game.onLose();
-			return; // skip get next render frame to stop game loop
 		}
 		
 		Game.smaller_then_player_count = 0;
@@ -219,11 +231,13 @@ var Game = {
 	},
 	onLose:function()
 	{
-		Game.game_canvas.outerHTML="<p class=\"lose\">You Lose!</p>";
+		Game.currentBackgroundText = "You Lose!!!";
+		Game.currentBackgroundTextStyle = "#A00";
 	},
 	onWin:function()
 	{
-		Game.game_canvas.outerHTML="<p class=\"win\">You Win!</p>";
+		Game.currentBackgroundText = "You Win!!!";
+		Game.currentBackgroundTextStyle = "#0A0";
 	},
 }
 
@@ -367,15 +381,15 @@ var PlayerInput = {
 	run: function(){
 		var dirx = 0;
 		var diry = 0;
-		var force = this.parent.radius*10;
+		var force = this.parent.radius * 10;
 		if(this.keyState.up)
-			diry = -force;
+			diry += -force;
 		if(this.keyState.down)
-			diry = force;
+			diry += force;
 		if(this.keyState.left)
-			dirx = -force;
+			dirx += -force;
 		if(this.keyState.right)
-			dirx = force;
+			dirx += force;
 		
 		var body = this.parent.physics.physBody;
 		if(!(dirx==0 && diry==0))
