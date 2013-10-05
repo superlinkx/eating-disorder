@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>NOM NOM NOM NOM IN SPAAAAAAAAAAACE!</title>
+		<script src="game/jquery.js"></script>
+		<script src="game/box2dweb.min.js"></script>
+		<script src="game/game.js"></script>
+		<style>
+			body {
+				position: relative;
+				font-family:Arial,sans-serif;
+			}
+			.wrapper{
+				margin-left:auto;
+				margin-right:auto;
+				width:800px;
+				height:480px;
+			}
+			.game {
+				
+				position: relative;
+				/*overflow: hidden;*/
+			}
+
+			canvas {
+				width: inherit;
+				height: inherit;
+				position: absolute;
+				top: 0;
+				left: 0;
+			}
+
+			#game {
+				z-index: 1;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="wrapper" >
+			<h1>NOM NOM NOM NOM IN SPAAAAAAAAAAACE!</h1>
+			<p>Use arrow Keys to move.</p>
+			<p>Avoid the red circles</p>
+			<p>Absorb the blue circles</p>
+			<p>Hit F5 for new game</p>
+			<div class="game">
+				<!--<canvas id="background"></canvas>-->
+				<canvas id="game"></canvas>
+			</div>
+			
+		</div>
+	</body>
+</html>
