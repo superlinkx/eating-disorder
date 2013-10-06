@@ -29,34 +29,41 @@ var Game = {
 						var bigger = b;
 						var smaller = a;
 					}
-
-					var distance = Math.sqrt(Math.pow(a.posx - b.posx, 2) + Math.pow(a.posy - b.posy, 2));
-					if(distance > bigger.radius-smaller.radius){
-						var part1 = smaller.radius*smaller.radius*Math.acos((distance*distance + smaller.radius*smaller.radius - bigger.radius*bigger.radius)/(2*distance*smaller.radius));
-						var part2 = bigger.radius*bigger.radius*Math.acos((distance*distance + bigger.radius*bigger.radius - smaller.radius*smaller.radius)/(2*distance*bigger.radius));
-						var part3 = 0.5*Math.sqrt((-distance+smaller.radius+bigger.radius)*(distance+smaller.radius-bigger.radius)*(distance-smaller.radius+bigger.radius)*(distance+smaller.radius+bigger.radius));
-						var intersectionArea = part1 + part2 - part3;
-						var bigArea = bigger.radius*bigger.radius*Math.PI;
-						var smallArea = smaller.radius*smaller.radius*Math.PI;
-						bigArea += Game.transfer_const*intersectionArea;
-						smallArea -= Game.transfer_const*intersectionArea;
-						bigger.radius = Math.sqrt(bigArea/Math.PI);
-						smaller.radius = Math.sqrt(smallArea/Math.PI);
-					}else{
-						var bigArea = bigger.radius*bigger.radius*Math.PI;
-						var smallArea = smaller.radius*smaller.radius*Math.PI;
-						bigArea += smallArea;
-						smaller.radius=.0001;
-						bigger.radius = Math.sqrt(bigArea/Math.PI);
-					}
+					var inside = false;
+					var rr0 = bigger.radius*bigger.radius;
+					var rr1 = smaller.radius*smaller.radius;
 					
+					var d = Math.sqrt(Math.pow(a.posx - b.posx, 2) + Math.pow(a.posy - b.posy, 2));
+					// Circles do not overlap
+					if (d > smaller.radius + bigger.radius){
+						var area = 0;
+					}
+						// Circle1 is completely inside circle0
+					else if (d <= Math.abs(bigger.radius - smaller.radius) && bigger.radius >= smaller.radius){
+						// Return area of circle1
+						inside = true;
+						var area = Math.PI * rr1;
+					}// Circles partially overlap
+					else {
+						var phi = (Math.acos((rr0 + (d * d) - rr1) / (2 * bigger.radius * d))) * 2;
+						var theta = (Math.acos((rr1 + (d * d) - rr0) / (2 * smaller.radius * d))) * 2;
+						var area1 = 0.5 * theta * rr1 - 0.5 * rr1 * Math.sin(theta);
+						var area2 = 0.5 * phi * rr0 - 0.5 * rr0 * Math.sin(phi);
+						// Return area of intersection
+						var area = area1 + area2;
+					}
+
+					var bigArea = rr0*Math.PI;
+					var smallArea = rr1*Math.PI;				
+					bigArea += area * Game.transfer_const;
+					smallArea -= area * Game.transfer_const;
+					bigger.radius = Math.sqrt(bigArea/Math.PI);
+					smaller.radius = Math.sqrt(smallArea/Math.PI);
 					bigger.physics.physFixture.GetShape().SetRadius(bigger.radius/Game.physics.scale);
-					if(smaller.radius > .001){
-						
+					if(inside !== true){		
 						smaller.physics.physFixture.GetShape().SetRadius(smaller.radius/Game.physics.scale);
 					}else{
 						Game.removeEntity(smaller);
-						//smaller.radius=0.001;
 					}
 					contact.SetEnabled(false);
 				}
