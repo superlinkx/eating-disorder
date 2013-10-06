@@ -6,10 +6,6 @@ var Game = {
 	game_canvas: null,
 	game_context: null,
 	transfer_const: 0.5,
-	bigger_then_player_count: 0,
-	smaller_then_player_count: 0,
-	currentBackgroundText: "",
-	currentBackgroundTextStyle: "#000",
 	init: function(canvas, width,height){
 		Game.nextID = 0;
 		Game.physics = Object.create(physicsModule);
@@ -26,57 +22,41 @@ var Game = {
 				var a = contact.GetFixtureA().GetBody().GetUserData();
 				var b = contact.GetFixtureB().GetBody().GetUserData();
 				if(a.type == "player" || a.type == "enemy" && b.type == "player" || b.type == "enemy") {
-					var bigger, smaller;			
 					if(a.radius > b.radius) {
-						bigger = a;
-						smaller = b;
+						var bigger = a;
+						var smaller = b;
 					} else {
-						bigger = b;
-						smaller = a;
+						var bigger = b;
+						var smaller = a;
 					}
 
-					var displacementX = a.posx - b.posx, displacementY = a.posy - b.posy;
-					var distanceSquared = displacementX * displacementX + displacementY * displacementY;
-					var distance = Math.sqrt(distanceSquared);					
-						var sqrtArg = -distanceSquared * distanceSquared + 2 * distanceSquared * (bigger.radius * bigger.radius + smaller.radius * smaller.radius);
+					var distance = Math.sqrt(Math.pow(a.posx - b.posx, 2) + Math.pow(a.posy - b.posy, 2));
+					if(distance > bigger.radius-smaller.radius){
+						var part1 = smaller.radius*smaller.radius*Math.acos((distance*distance + smaller.radius*smaller.radius - bigger.radius*bigger.radius)/(2*distance*smaller.radius));
+						var part2 = bigger.radius*bigger.radius*Math.acos((distance*distance + bigger.radius*bigger.radius - smaller.radius*smaller.radius)/(2*distance*bigger.radius));
+						var part3 = 0.5*Math.sqrt((-distance+smaller.radius+bigger.radius)*(distance+smaller.radius-bigger.radius)*(distance-smaller.radius+bigger.radius)*(distance+smaller.radius+bigger.radius));
+						var intersectionArea = part1 + part2 - part3;
 						var bigArea = bigger.radius*bigger.radius*Math.PI;
 						var smallArea = smaller.radius*smaller.radius*Math.PI;
-						if(sqrtArg <= 0)
-						{
-							transferArea = smallArea;
-						}
-						else
-						{
-							var t1 = -0.5 * Math.PI * (-Math.sqrt(sqrtArg) - bigger.radius * bigger.radius + smaller.radius * smaller.radius);
-							var t2 = -0.5 * Math.PI * (Math.sqrt(sqrtArg) - bigger.radius * bigger.radius + smaller.radius * smaller.radius);
-							transferArea = 0;
-							if(t1 > 0)
-							{
-								transferArea = t1;
-								if(t2 > 0 && t2 < t1)
-									transferArea = t2;
-							}
-							else if(t2 > 0)
-							{
-								transferArea = t2;
-							}							
-						}
-						if(transferArea > smallArea)
-						{
-						    transferArea = smallArea;
-						}
-						var maxTransferArea = (smallArea + bigArea) / 60;
-						if(transferArea > maxTransferArea) transferArea = maxTransferArea;
-						bigArea += transferArea;
-						smallArea -= transferArea;
+						bigArea += Game.transfer_const*intersectionArea;
+						smallArea -= Game.transfer_const*intersectionArea;
 						bigger.radius = Math.sqrt(bigArea/Math.PI);
 						smaller.radius = Math.sqrt(smallArea/Math.PI);
+					}else{
+						var bigArea = bigger.radius*bigger.radius*Math.PI;
+						var smallArea = smaller.radius*smaller.radius*Math.PI;
+						bigArea += smallArea;
+						smaller.radius=.0001;
+						bigger.radius = Math.sqrt(bigArea/Math.PI);
+					}
 					
 					bigger.physics.physFixture.GetShape().SetRadius(bigger.radius/Game.physics.scale);
 					if(smaller.radius > .001){
+						
 						smaller.physics.physFixture.GetShape().SetRadius(smaller.radius/Game.physics.scale);
 					}else{
 						Game.removeEntity(smaller);
+						//smaller.radius=0.001;
 					}
 					contact.SetEnabled(false);
 				}
@@ -98,9 +78,8 @@ var Game = {
 		Game.addEntity(wallFactory(0,Game.game_canvas.height-1,Game.game_canvas.width,1)); //Bottom border
 		Game.addEntity(wallFactory(0,0,1,Game.game_canvas.height)); //Left border
 		var circle_list = [];
-		//var maxSize=10;
-		//var minSize=1;
-		var padding = 10;
+		var maxSize=20;
+		var minSize=1;
 		var x;
 		var y;
 		function dist(x,y,entity){
@@ -136,18 +115,18 @@ var Game = {
 			var point_found=false;
 			var rx;
 			var ry;
-			var maxR=40;
+			var maxR=150;
 			var minR=2;
 			var currentRadius = 1;
 			var targetRadius = Math.random()*(maxR-minR)+minR;
 			while(attempts > 0 && point_found == false){
 				rx = Math.random()*Game.game_canvas.width;
 				ry = Math.random()*Game.game_canvas.height;
-				point_found = testCircle(rx,ry,currentRadius,padding,circle_list);
+				point_found = testCircle(rx,ry,currentRadius,6,circle_list);
 			}
 			if(attempts == 0) continue;
 			while(currentRadius < targetRadius && point_found){
-				point_found = testCircle(rx,ry,currentRadius,padding,circle_list);
+				point_found = testCircle(rx,ry,currentRadius,6,circle_list);
 				if(point_found!=false){
 					currentRadius += .02;
 				}
@@ -167,24 +146,13 @@ var Game = {
 		
 	},
 	loop: function(){
+		window.requestAnimationFrame(Game.loop);
 		if(Game.new_entities.length > 0){
 			Game.entities = Game.entities.concat(Game.new_entities); // add new entities
 			Game.new_entities = []; // empty the array
 		}
 		//clear screen
 		Game.game_context.clearRect(0, 0, Game.game_canvas.width, Game.game_canvas.height);
-		
-		//draw background
-		Game.game_context.fillStyle = Game.currentBackgroundTextStyle;
-		var textHeight = 100;
-		Game.game_context.font = textHeight + "px Arial,sanserif";
-		Game.game_context.textBaseline = "middle";
-		Game.game_context.textAlign = "center";
-		Game.game_context.fillText(Game.currentBackgroundText, Game.game_canvas.width / 2, Game.game_canvas.height / 2);
-		Game.game_context.strokeStyle = "#000";
-		Game.game_context.strokeText(Game.currentBackgroundText, Game.game_canvas.width / 2, Game.game_canvas.height / 2);
-		
-		//run physics
 		Game.physics.update();
 		Game.entity_length = Game.entities.length;
 		for(Game.entity_i = 0; Game.entity_i < Game.entity_length; Game.entity_i++) {
@@ -203,21 +171,6 @@ var Game = {
 			Game.entities_deleted = false;
 		}
 		
-		// check for win/lose
-		if(Game.bigger_then_player_count <= 0) // if won
-		{
-			Game.onWin();
-		}
-		else if(Game.smaller_then_player_count <= 0) // if lost
-		{
-			Game.onLose();
-		}
-		
-		Game.smaller_then_player_count = 0;
-		Game.bigger_then_player_count = 0;
-		
-		// get next render frame
-		window.requestAnimationFrame(Game.loop);
 	},
 	addEntity: function(entity){
 		Game.new_entities.push(entity);
@@ -229,16 +182,7 @@ var Game = {
 		entity.deleted = true;
 		return entity;
 	},
-	onLose:function()
-	{
-		Game.currentBackgroundText = "You Lose!!!";
-		Game.currentBackgroundTextStyle = "#A00";
-	},
-	onWin:function()
-	{
-		Game.currentBackgroundText = "You Win!!!";
-		Game.currentBackgroundTextStyle = "#0A0";
-	},
+	
 }
 
 var physicsModule = {
@@ -293,7 +237,6 @@ var playerFactory = function(posx, posy, radius) {
 	player.input = Object.create(PlayerInput);
 	player.physics = Object.create(CirclePhysics);
 	player.render = Object.create(EntityRender);
-	player.conditionCheck = Object.create(Empty);
 	return player;
 };
 
@@ -309,7 +252,6 @@ var enemyFactory = function(posx, posy, radius) {
 	enemy.input = Object.create(Empty);
 	enemy.physics = Object.create(CirclePhysics);
 	enemy.render = Object.create(EntityRender);
-	enemy.conditionCheck = Object.create(CircleCheckForWinLoseCondition);
 	return enemy;
 }
 
@@ -323,7 +265,6 @@ var wallFactory = function(posx, posy, width, height) {
 	wall.input = Object.create(Empty);
 	wall.physics = Object.create(WallPhysics);
 	wall.render = Object.create(WallRender);
-	wall.conditionCheck = Object.create(Empty);
 	return wall;
 }
 
@@ -332,19 +273,16 @@ var Entity = {
 		this.input.init(this);
 		this.physics.init(this);
 		this.render.init(this);
-		this.conditionCheck.init(this);
 	},
 	update: function() {
 		this.input.run();
 		this.physics.run();
 		this.render.run();
-		this.conditionCheck.run();
 	},
 	destroy: function(){
 		this.input.destroy();
 		this.physics.destroy();
 		this.render.destroy();
-		this.conditionCheck.destroy();
 	}
 };
 
@@ -381,15 +319,15 @@ var PlayerInput = {
 	run: function(){
 		var dirx = 0;
 		var diry = 0;
-		var force = this.parent.radius * 10;
+		var force = this.parent.radius*10;
 		if(this.keyState.up)
-			diry += -force;
+			diry = -force;
 		if(this.keyState.down)
-			diry += force;
+			diry = force;
 		if(this.keyState.left)
-			dirx += -force;
+			dirx = -force;
 		if(this.keyState.right)
-			dirx += force;
+			dirx = force;
 		
 		var body = this.parent.physics.physBody;
 		if(!(dirx==0 && diry==0))
@@ -456,6 +394,7 @@ var WallPhysics = {
 var EntityRender = {
 	init: function(parent) {
 		this.parent = parent;
+		this.color = "#0000ff";
 	},
 	run: function() {
 		if(this.parent.radius > 0) {
@@ -480,6 +419,7 @@ var EntityRender = {
 	destroy: function(){
 	
 	}
+	
 };
 
 var WallRender = {
@@ -499,20 +439,6 @@ var Empty = {
 	init: function() {},
 	run: function() {},
 	destroy:function(){}
-}
-
-var CircleCheckForWinLoseCondition = {
-	init: function(parent) {
-		this.parent = parent;
-	},
-	run: function() {
-		if(this.parent.radius >= Game.player.radius){
-			Game.bigger_then_player_count++;
-		}else{
-			Game.smaller_then_player_count++;
-		}
-	},
-	destroy: function() {}
 }
 
 $(function(){
