@@ -1,3 +1,4 @@
+"use strict";
 var Game = {
 	entities: [],
 	walls: [],
@@ -10,14 +11,16 @@ var Game = {
 		Game.nextID = 0;
 		Game.physics = Object.create(physicsModule);
 		Game.physics.init(5);
-		Game.physics.setEndContactListener(function(contact, manifold) {
+		Game.physics.setEndContactListener(function(thisPtr, contactPtr) {
+			var contact = Box2D.wrapPointer(contactPtr, Box2D.b2Contact);
 			var a = contact.GetFixtureA().GetBody().GetUserData();
 			var b = contact.GetFixtureB().GetBody().GetUserData();
 			if(a.type == "player" || a.type == "enemy" && b.type == "player" || b.type == "enemy") {
 				contact.SetEnabled(false);
 			}
 		});
-		Game.physics.setPreSolveListener(function(contact, manifold) {
+		Game.physics.setPreSolveListener(function(thisPtr, contactPtr) {
+			var contact = Box2D.wrapPointer(contactPtr, Box2D.b2Contact);
 			if(contact.IsTouching()) {
 				var a = contact.GetFixtureA().GetBody().GetUserData();
 				var b = contact.GetFixtureB().GetBody().GetUserData();
@@ -95,9 +98,7 @@ var Game = {
 		function testCircle(x,y,r,padding,list){
 			var listlen = list.length;
 			var valid = true;
-			
 			//test walls
-			
 			//left wall
 			if(x-r-padding < 0) return false
 			//top wall
@@ -139,18 +140,8 @@ var Game = {
 				}
 			}
 			console.log(currentRadius);
-//			if(currentRadius != currentRadius) continue;
-			circle_list.push(Game.addEntity(enemyFactory(rx, ry, currentRadius)));
-			
+			circle_list.push(Game.addEntity(enemyFactory(rx, ry, currentRadius)));	
 		}
-		
-		
-		
-		
-		
-		//Game.addEntity(enemyFactory(Game.game_canvas.width/4, Game.game_canvas.height/4, 5));
-	//	Game.addEntity(enemyFactory(Game.game_canvas.width/8, Game.game_canvas.height/8, 8));
-		
 	},
 	loop: function(){
 		window.requestAnimationFrame(Game.loop);
@@ -194,6 +185,7 @@ var Game = {
 
 var physicsModule = {
 	init: function(scale){
+		this.listeners = [];
 		this.Vec2 = Box2D.b2Vec2;
 		this.BodyDef = Box2D.b2BodyDef;
 		this.Body = Box2D.b2Body;
@@ -205,24 +197,46 @@ var physicsModule = {
 		//this.MassData = Box2D.Collision.Shapes.b2MassData;
 		this.PolygonShape = Box2D.b2PolygonShape;
 		this.CircleShape = Box2D.b2CircleShape;
-		this.DebugDraw = Box2D.b2DebugDraw;
+		//this.DebugDraw = Box2D.b2DebugDraw;
 		this.scale = scale;
-		this.world = new this.World(new this.Vec2(0,-10));
-		//this.contactListener = new Box2D.b2ContactListener();
-		//this.world.SetContactListener(this.contactListener);
-		
+		this.world = new this.World(new this.Vec2(0,0));
+		this.contactListener = new Box2D.b2ContactListener();
 	},
-	setBeginContactListener:function(listener){
-		//this.contactListener.BeginContact = listener;	
+	setBeginContactListener: function(listener){
+		var newListener = {
+			original: Box2D.b2ContactListener.prototype.BeginContact,
+			replacement: listener
+		};
+		this.listeners.push(newListener); //TODO: This is a terrible idea. But it's future me's problem.
+		Box2D.customizeVTable(this.contactListener, this.listeners)
+		this.world.SetContactListener(this.contactListener);
 	},
 	setPreSolveListener: function(listener){
-		//this.contactListener.PreSolve = listener;
+		var newListener = {
+			original: Box2D.b2ContactListener.prototype.PreSolve,
+			replacement: listener
+		};
+		this.listeners.push(newListener); //TODO: This is a terrible idea. But it's future me's problem.
+		Box2D.customizeVTable(this.contactListener, this.listeners)
+		this.world.SetContactListener(this.contactListener);
 	},
 	setPostSolveListener: function(listener){
-		//this.contactListener.PostSolve = listener;
+		var newListener = {
+			original: Box2D.b2ContactListener.prototype.PostSolve,
+			replacement: listener
+		};
+		this.listeners.push(newListener); //TODO: This is a terrible idea. But it's future me's problem.
+		Box2D.customizeVTable(this.contactListener, this.listeners)
+		this.world.SetContactListener(this.contactListener);
 	},
 	setEndContactListener: function(listener){
-		//this.contactListener.EndContact = listener;
+		var newListener = {
+			original: Box2D.b2ContactListener.prototype.EndContact,
+			replacement: listener
+		};
+		this.listeners.push(newListener); //TODO: This is a terrible idea. But it's future me's problem.
+		Box2D.customizeVTable(this.contactListener, this.listeners)
+		this.world.SetContactListener(this.contactListener);
 	},
 	update: function(){
 		this.world.Step(1 / 60,  3,  3);
@@ -339,10 +353,8 @@ var PlayerInput = {
 			dirx = force;
 		
 		var body = this.parent.physics.physBody;
-		//console.log(dirx);
 		if(!(dirx==0 && diry==0))
 			body.ApplyForceToCenter(new  Game.physics.Vec2(dirx,diry));
-		
 	},
 	destroy: function(){}
 };
@@ -352,17 +364,17 @@ var CirclePhysics = {
 		this.parent = parent;
 		var fixtureDef = new Game.physics.FixtureDef();
 		var shape = new Game.physics.CircleShape();
-			shape.set_m_radius(this.parent.radius/Game.physics.scale);
-			fixtureDef.set_shape(shape)
-			fixtureDef.set_density(1);
-			fixtureDef.set_restitution(1);
-			fixtureDef.set_friction(0);
+		shape.set_m_radius(this.parent.radius/Game.physics.scale);
+		fixtureDef.set_shape(shape)
+		fixtureDef.set_density(1);
+		fixtureDef.set_restitution(1);
+		fixtureDef.set_friction(0);
 		
 		var bodyDef = new Game.physics.BodyDef();
-			bodyDef.type = Game.physics.dynamicBody;
-			bodyDef.set_position(new Game.physics.Vec2(this.parent.posx/Game.physics.scale,this.parent.posy/Game.physics.scale));
-			bodyDef.set_userData(this.parent);
+		bodyDef.set_type(Game.physics.dynamicBody);
+		bodyDef.set_position(new Game.physics.Vec2(this.parent.posx/Game.physics.scale,this.parent.posy/Game.physics.scale));
 		this.physBody = Game.physics.world.CreateBody(bodyDef);
+		this.physBody.SetUserData(this.parent);
 		this.physFixture = this.physBody.CreateFixture(fixtureDef);
 		
 	},
@@ -389,12 +401,10 @@ var WallPhysics = {
 		fixtureDef.set_shape(shape);
 		
 		var physDef = new Game.physics.BodyDef();
-		physDef.type = Game.physics.staticBody;
+		physDef.set_type(Game.physics.staticBody);
 		physDef.set_position(new Game.physics.Vec2(this.parent.posx/Game.physics.scale,this.parent.posy/Game.physics.scale));
-	//	physDef.position.x = this.parent.posx/Game.physics.scale;
-	//	physDef.position.y = this.parent.posy/Game.physics.scale;
-		physDef.set_userData(this.parent);		
 		this.physBody = Game.physics.world.CreateBody(physDef);
+		this.physBody.SetUserData(this.parent);		
 		this.physFixture = this.physBody.CreateFixture(fixtureDef);
 	},
 	run: function() {
