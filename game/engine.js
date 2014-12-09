@@ -7,6 +7,8 @@ var engine = (function() {
   //Public properties and methods
   return {
     entities: {}, //Table to contain engine entities
+    components: {}, //Table of components
+    systems: {}, //Table of systems
     init: function() {
       //Initialization stuff
     },
