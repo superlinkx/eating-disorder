@@ -5,22 +5,18 @@ engine.addEntity = function() {
   var entity = (function() {
     //Entity construction
     //Private properties and methods of the entity
-    var components = {};
     var id = that.getNewEntityId(); //Get the id we should use from the engine
 
     //Public properties and methods of the entity
     return {
+      components: {},
       getId: function() {
         //Returns the id of the entity
         return id;
       },
-      getComponents: function() {
-        //Returns the components object of the entity
-        return components;
-      },
       addComponent: function(component) {
         //Adds a new component, using a component definition
-        components[component.name] = component;
+        this.components[component.name] = component;
       },
       removeComponent: function(component) {
         //Removes a component. You may pass in a name, or it will extract it
@@ -29,7 +25,7 @@ engine.addEntity = function() {
         if(typeof component === "object") {
           name = component.name;
         }
-        delete components[name];
+        delete this.components[name];
       },
       remove: function() {
         //Deletes this entity

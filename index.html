@@ -7,6 +7,7 @@
 		<script src="game/engine.js"></script>
 		<script src="game/entity.js"></script>
 		<script src="game/components.js"></script>
+		<script src="game/systems.js"></script>
 		<style>
 			body {
 				position: relative;
@@ -49,9 +50,11 @@
 				<canvas id="game"></canvas>
 			</div>
 			<script>
+				var system, curSystem;
 				var entity1 = engine.addEntity();
 				engine.entities[entity1].addComponent(engine.components.coords(0,10));
-				console.log(engine);
+				engine.entities[entity1].addComponent(engine.components.appearance());
+				engine.runSystems();
 			</script>
 		</div>
 	</body>

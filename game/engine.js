@@ -15,6 +15,13 @@ var engine = (function() {
     getNewEntityId: function() {
       //Method to return a new entity id
       return entityCount++;
+    },
+    runSystems: function() {
+      //Method to run all systems once
+      var system;
+      for(system in this.systems) {
+        engine.systems[system](this.entities);
+      }
     }
   };
 }());
