@@ -11,7 +11,7 @@ engine.systems.render = function(entities, canvas, ctx) {
       //the necessary components
       appearance = curEntity.components.appearance;
       coords = curEntity.components.coords;
-      if(appearance.type === 'shape')
+      if(appearance.type === 'shape') {
         if(appearance.shape === 'circle') {
           ctx.beginPath();
           ctx.fillStyle = appearance.color;
@@ -20,6 +20,14 @@ engine.systems.render = function(entities, canvas, ctx) {
           ctx.fill();
           ctx.closePath();
         }
+
+        if(appearance.type === 'rectangle') {
+          ctx.beginPath();
+          ctx.fillStyle = appearance.color;
+          ctx.fillRect(coords.x, coords.y, appearance.width, appearance.height);
+          ctx.closePath();
+        }
+      }
     }
   }
 };
