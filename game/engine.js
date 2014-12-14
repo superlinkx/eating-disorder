@@ -5,9 +5,12 @@ var engine = (function() {
   var entityCount = 0; //Keeps track of how many entities have been created so far
   var engineStart;
   var engineLoop;
+  var canvas;
+  var ctx;
   var loop = function(timestamp) {
     engineLoop = window.requestAnimationFrame(loop);
     var progress = timestamp - engineStart;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     engineObj.runSystems();
   };
 
@@ -18,9 +21,10 @@ var engine = (function() {
     init: function(w, h, canvasEl) {
       //Initialization stuff
       //Takes a width, height, and optional canvas id (id defaults to game)
-      var canvas = document.getElementById(canvasEl || 'game').getContext('2d');
-      canvas.width = w || 720;
-      canvas.height = h || 480;
+      canvas = document.getElementById(canvasEl || 'game');
+      ctx = canvas.getContext('2d');
+      canvas.width = canvas.style.width = w || 720;
+      canvas.height = canvas.style.height = h || 480;
       engineStart = Date.now();
 
       engineLoop = window.requestAnimationFrame(loop);
@@ -35,9 +39,10 @@ var engine = (function() {
     },
     runSystems: function() {
       //Method to run all systems once
+      //Systems must the entities list, canvas element, and the context
       var system;
       for(system in this.systems) {
-        engine.systems[system](this.entities);
+        engine.systems[system](this.entities, canvas, ctx);
       }
     }
   };
