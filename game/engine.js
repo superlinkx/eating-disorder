@@ -7,6 +7,7 @@ var engine = (function() {
   var engineLoop;
   var canvas;
   var ctx;
+  var entities = {};
   var getNewEntityId = function() {
     return entityCount++;
   };
@@ -18,7 +19,6 @@ var engine = (function() {
   };
 
   var engineObj = {
-    entities: {},
     components: {},
     systems: {},
     init: function(w, h, canvasEl) {
@@ -66,20 +66,23 @@ var engine = (function() {
           },
           remove: function() {
             //Deletes this entity
-            delete that.entities[id];
+            delete entities[id];
           }
         };
       }());
 
-      this.entities[entity.getId()] = entity; //Add entity to entity table
+      entities[entity.getId()] = entity; //Add entity to entity table
       return entity.getId(); //Return the id of the new entity
+    },
+    getEntity: function(id) {
+      return entities[id];
     },
     runSystems: function() {
       //Method to run all systems once
       //Systems must the entities list, canvas element, and the context
       var system;
       for(system in this.systems) {
-        this.systems[system](this.entities, canvas, ctx);
+        this.systems[system](entities, canvas, ctx);
       }
     }
   };
