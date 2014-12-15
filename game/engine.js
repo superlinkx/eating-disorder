@@ -7,6 +7,9 @@ var engine = (function() {
   var engineLoop;
   var canvas;
   var ctx;
+  var getNewEntityId = function() {
+    return entityCount++;
+  };
   var loop = function(timestamp) {
     engineLoop = window.requestAnimationFrame(loop);
     var progress = timestamp - engineStart;
@@ -15,9 +18,9 @@ var engine = (function() {
   };
 
   var engineObj = {
-    entities: {}, //Table to contain engine entities
-    components: {}, //Table of components
-    systems: {}, //Table of systems
+    entities: {},
+    components: {},
+    systems: {},
     init: function(w, h, canvasEl) {
       //Initialization stuff
       //Takes a width, height, and optional canvas id (id defaults to game)
@@ -33,16 +36,50 @@ var engine = (function() {
       if(engineLoop)
         window.cancelAnimationFrame(engineLoop);
     },
-    getNewEntityId: function() {
-      //Method to return a new entity id
-      return entityCount++;
+    addEntity: function() {
+      //Add a new entity to the engine
+      var that = this;
+      var entity = (function() {
+        //Entity construction
+        //Private properties and methods of the entity
+        var id = getNewEntityId(); //Get the id we should use from the engine
+
+        //Public properties and methods of the entity
+        return {
+          components: {},
+          getId: function() {
+            //Returns the id of the entity
+            return id;
+          },
+          addComponent: function(component) {
+            //Adds a new component, using a component definition
+            this.components[component.name] = component;
+          },
+          removeComponent: function(component) {
+            //Removes a component. You may pass in a name, or it will extract it
+            //from a reference to the component object itself.
+            var name = component;
+            if(typeof component === "object") {
+              name = component.name;
+            }
+            delete this.components[name];
+          },
+          remove: function() {
+            //Deletes this entity
+            delete that.entities[id];
+          }
+        };
+      }());
+
+      this.entities[entity.getId()] = entity; //Add entity to entity table
+      return entity.getId(); //Return the id of the new entity
     },
     runSystems: function() {
       //Method to run all systems once
       //Systems must the entities list, canvas element, and the context
       var system;
       for(system in this.systems) {
-        engine.systems[system](this.entities, canvas, ctx);
+        this.systems[system](this.entities, canvas, ctx);
       }
     }
   };
